@@ -103,9 +103,9 @@ if page == "All Events":
     end_time = int((end_date + timedelta(days=1)).timestamp())  # end is exclusive
 
     print("Start:", start_date, "→", start_time)
-    print("End:", end_date, "→", start_time)
+    print("End:", end_date, "→", end_time)
 
-    st.title("Zabbix Problem Events (Last 7 Days)")
+    st.title("Zabbix Problem Events "  + f" ({iso_week})")
     df = getEvents(start_time, end_time)
     #st.dataframe(df[["Date/Time", "Host Name", "Device ID", "Item ID", "Event Name"]].reset_index(drop=True),height=800)
 
@@ -117,7 +117,7 @@ if page == "All Events":
 
 # Page: Summary
 elif page == "Top 20 Host":
-    st.title("Top 20 Host")
+    
 
     # Week selector
     iso_week = week_selector()
@@ -125,6 +125,7 @@ elif page == "Top 20 Host":
         iso_week = datetime.now().strftime("%G-W%V")
         st.info("No week selected. Defaulting to current week.")
     print(iso_week)
+    st.title("Top 20 Hosts " + f" ({iso_week})")
 
     # Get Monday of the ISO week
     start_date = datetime.strptime(iso_week + "-1", "%G-W%V-%u")
@@ -157,13 +158,15 @@ elif page == "Top 20 Host":
     st.altair_chart(chart, use_container_width=True)
 
 elif page == "Top 20 Events":
-    st.title("Top 20 Events by Item ID")
+    
 
     # Week selector
     iso_week = week_selector()
     if iso_week is None:
         iso_week = datetime.now().strftime("%G-W%V")
         st.info("No week selected. Defaulting to current week.")
+
+    st.title("Top 20 Events by Item ID " + f" ({iso_week})")
 
     # Get time range
     start_date = datetime.strptime(iso_week + "-1", "%G-W%V-%u")
