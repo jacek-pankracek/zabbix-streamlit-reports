@@ -31,8 +31,6 @@ start_time = int((now - timedelta(days=7)).timestamp())
 end_time = int(now.timestamp())
 
 def getEvents(start_time, end_time):
-
-    # Fetch problem events
     events = zapi.event.get(
         time_from=start_time,
         time_till=end_time,
@@ -43,20 +41,36 @@ def getEvents(start_time, end_time):
         sortorder="DESC"
     )
 
-    # Convert to DataFrame
     df = pd.DataFrame(events)
     df["clock"] = pd.to_datetime(df["clock"], unit="s")
     df["deviceid"] = df["hosts"].apply(lambda x: x[0]["hostid"] if x else None)
     df["devicename"] = df["hosts"].apply(lambda x: x[0]["name"] if x else None)
     df["itemid"] = df["relatedObject"].apply(lambda x: x.get("itemid") if x else None)
+    df["severity"] = df["relatedObject"].apply(lambda x: x.get("priority") if x else None)
 
-    df.rename(columns={"clock": "Date/Time", 
-                        "devicename": "Host Name",
-                        "deviceid": "Device ID",
-                        "objectid": "Item ID",
-                        "name": "Event Name"}, 
-                        inplace=True)
+    df.rename(columns={
+        "clock": "Date/Time",
+        "devicename": "Host Name",
+        "deviceid": "Device ID",
+        "objectid": "Item ID",
+        "name": "Event Name",
+        "severity": "Severity"
+    }, inplace=True)
+
+    SEVERITY_MAP = {
+    "0": "Not classified",
+    "1": "Information",
+    "2": "Warning",
+    "3": "Average",
+    "4": "High",
+    "5": "Disaster"
+    }
+    df["Severity"] = df["Severity"].astype(str).map(SEVERITY_MAP)
+
+
     return df
+
+# Streamlit App Configuration
 
 st.set_page_config(page_title="Zabbix Problem Events Dashboard", 
                    layout="wide",
@@ -65,10 +79,10 @@ st.set_page_config(page_title="Zabbix Problem Events Dashboard",
 # Sidebar navigation
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Choose a view:", [
-    "All Events", 
-    "Summary Host-Item", 
-    "Top 20 by Item ID", 
-    "10-Week Summary"
+    "10-Week Summary", 
+    "Top 20 Host",
+    "Top 20 Events",
+    "All Events"
 ])
 
 
@@ -93,11 +107,17 @@ if page == "All Events":
 
     st.title("Zabbix Problem Events (Last 7 Days)")
     df = getEvents(start_time, end_time)
-    st.dataframe(df[["Date/Time", "Host Name", "Device ID", "Item ID", "Event Name"]].reset_index(drop=True),height=800)
+    #st.dataframe(df[["Date/Time", "Host Name", "Device ID", "Item ID", "Event Name"]].reset_index(drop=True),height=800)
+
+    st.dataframe(
+    df[["Date/Time", "Host Name", "Device ID", "Item ID", "Event Name", "Severity"]].reset_index(drop=True),
+    height=800
+    )
+
 
 # Page: Summary
-elif page == "Summary Host-Item":
-    st.title("Summary by DeviceID and ItemID")
+elif page == "Top 20 Host":
+    st.title("Top 20 Host")
 
     # Week selector
     iso_week = week_selector()
@@ -136,7 +156,7 @@ elif page == "Summary Host-Item":
 
     st.altair_chart(chart, use_container_width=True)
 
-elif page == "Top 20 by Item ID":
+elif page == "Top 20 Events":
     st.title("Top 20 Events by Item ID")
 
     # Week selector
@@ -205,7 +225,7 @@ elif page == "10-Week Summary":
 
     summary_df = pd.DataFrame(weekly_stats).sort_values("Week")
 
-    st.dataframe(summary_df, height=500)
+    
 
     # Melt for Altair
     melted = summary_df.melt(id_vars="Week", 
@@ -225,4 +245,5 @@ elif page == "10-Week Summary":
 
     st.altair_chart(chart, use_container_width=True)
 
+    st.dataframe(summary_df, height=500)
 
