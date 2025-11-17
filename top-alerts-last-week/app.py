@@ -75,6 +75,9 @@ def getEvents(start_time, end_time):
     )
 
     df = pd.DataFrame(events)
+    #print(df.head())
+
+
     df["clock"] = pd.to_datetime(pd.to_numeric(df["clock"]), unit="s")
     df["deviceid"] = df["hosts"].apply(lambda x: x[0]["hostid"] if isinstance(x, list) and x else None)
     df["devicename"] = df["hosts"].apply(lambda x: x[0]["name"] if isinstance(x, list) and x else None)
@@ -238,7 +241,7 @@ if page == "Last Week Top 20 Reports":
         weekly_stats = []
 
         with st.spinner("Fetching 10 weeks of data..."):
-            for i in range(10):
+            for i in range(1, 11):  # Start from 1 to exclude current week
                 week_start = now - timedelta(weeks=i, days=now.weekday())
                 week_end = week_start + timedelta(days=7)
                 start_time = int(week_start.timestamp())
@@ -252,6 +255,8 @@ if page == "Last Week Top 20 Reports":
                     "Unique Events": df["Event Name"].nunique(),
                     "Hosts with Events": df["Host Name"].nunique()
                 })
+
+
 
         summary_df = pd.DataFrame(weekly_stats).sort_values("Week")
 
