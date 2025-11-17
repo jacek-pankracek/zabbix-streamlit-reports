@@ -71,6 +71,7 @@ def getEvents(start_time, end_time):
         selectHosts=["hostid", "name"],
         selectRelatedObject="extend",
         sortfield=["clock"],
+        selectTags="extend",
         sortorder="DESC"
     )
 
@@ -83,6 +84,9 @@ def getEvents(start_time, end_time):
     df["devicename"] = df["hosts"].apply(lambda x: x[0]["name"] if isinstance(x, list) and x else None)
     df["itemid"] = df["relatedObject"].apply(lambda x: x.get("itemid") if x else None)
     df["severity"] = df["relatedObject"].apply(lambda x: x.get("priority") if x else None)
+    df["tags"] = df["tags"].apply(
+        lambda taglist: [f"{t['tag']}:{t['value']}" for t in taglist] if isinstance(taglist, list) else []
+        )
 
 
     df.rename(columns={
@@ -143,7 +147,7 @@ if st.sidebar.button("Logout"):
 if page == "Last Week Top 20 Reports":
 
     # Week selector
-    iso_week = week_selector()
+    iso_week = week_selector("Select Week")
     if iso_week is None:
         iso_week = datetime.now().strftime("%G-W%V")
         st.info("No week selected. Defaulting to current week.")
@@ -152,8 +156,29 @@ if page == "Last Week Top 20 Reports":
     end_date = start_date + timedelta(days=6)
     start_time = int(start_date.timestamp())
     end_time = int((end_date + timedelta(days=1)).timestamp())  # end is exclusive
-    print("Start:", start_date, "→", start_time)
-    print("End:", end_date, "→", end_time)
+
+    # Collect all unique tag:value pairs across events
+    all_tags = []
+    events_preview = getEvents(start_time, end_time)  # quick fetch for available tags
+    for tags in events_preview["tags"]:
+        all_tags.extend(tags)
+    unique_tags = sorted(set(all_tags))
+
+    selected_tags = st.multiselect(
+        "Filter by Tag:Value pairs",
+        options=unique_tags,
+        default=[]  # start with none selected
+    )
+
+
+    # 🔽 Global severity filter
+    SEVERITY_OPTIONS = ["Not classified", "Information", "Warning", "Average", "High", "Disaster"]
+    selected_severities = st.multiselect(
+        "Filter by Severity",
+        options=SEVERITY_OPTIONS,
+        default=SEVERITY_OPTIONS  # default: show all
+    )
+
 
 
     # Tabs for different pages of reports
@@ -166,6 +191,13 @@ if page == "Last Week Top 20 Reports":
     with tab4:
         st.title("Zabbix Problem Events "  + f" ({iso_week})")
         df = getEvents(start_time, end_time)
+        # Apply severity filter
+        if selected_severities:
+            df = df[df["Severity"].isin(selected_severities)]
+        # Apply tag:value filter
+        if selected_tags:
+            df = df[df["tags"].apply(lambda taglist: any(t in taglist for t in selected_tags))]
+
         st.dataframe(df[["Date/Time", "Host Name", "Device ID", "Item ID", 
             "Event Name", "Severity"]].reset_index(drop=True),
         height=800
@@ -177,7 +209,12 @@ if page == "Last Week Top 20 Reports":
         # Fetch events
         with st.spinner("Fetching events..."):
             df = getEvents(start_time, end_time)
-
+        # Apply severity filter
+        if selected_severities:
+            df = df[df["Severity"].isin(selected_severities)]
+        if selected_tags:
+            df = df[df["tags"].apply(lambda taglist: any(t in taglist for t in selected_tags))]
+           
         summary_chart = df.groupby(["Host Name", "Event Name"]).size().reset_index(name="count").head(20)
         summary_chart.sort_values(by="count", ascending=False, inplace=True)
 
@@ -207,7 +244,12 @@ if page == "Last Week Top 20 Reports":
         # Fetch events
         with st.spinner("Fetching events..."):
             df = getEvents(start_time, end_time)
-
+        # Apply severity filter
+        if selected_severities:
+            df = df[df["Severity"].isin(selected_severities)]
+        if selected_tags:
+            df = df[df["tags"].apply(lambda taglist: any(t in taglist for t in selected_tags))]
+ 
         # Group and summarize
         top_items = (
             df.groupby(["Item ID", "Event Name"])
@@ -248,7 +290,12 @@ if page == "Last Week Top 20 Reports":
                 end_time = int(week_end.timestamp())
 
                 df = getEvents(start_time, end_time)
-
+                # Apply severity filter
+                if selected_severities:
+                    df = df[df["Severity"].isin(selected_severities)]
+                if selected_tags:
+                    df = df[df["tags"].apply(lambda taglist: any(t in taglist for t in selected_tags))]
+ 
                 weekly_stats.append({
                     "Week": week_start.strftime("%G-W%V"),
                     "Total Events": len(df),
