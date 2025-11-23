@@ -16,17 +16,26 @@ load_dotenv()
 # Read environment variables
 ZABBIX_URL = os.getenv("ZABBIX_URL")
 ZABBIX_TOKEN = os.getenv("ZABBIX_TOKEN")
+ZABBIX_AUTH_METHOD = os.getenv("ZABBIX_AUTH_METHOD")  # possible zabbix, external
+print(f"Using Zabbix URL: {ZABBIX_URL}")
+print(f"Using Zabbix Auth Method: {ZABBIX_AUTH_METHOD}")    
 
-# Global variable to hold logged in username
-#username_logged = ""
 
+if ZABBIX_AUTH_METHOD == "zabbix":
+    # Session state for login
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    if "zapi" not in st.session_state:
+        st.session_state.zapi = None
 
-# Session state for login
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "zapi" not in st.session_state:
-    st.session_state.zapi = None
+if ZABBIX_AUTH_METHOD == "external":
+    # Use token-based session for external auth
+    zapi = ZabbixAPI(ZABBIX_URL)
+    zapi.session.headers.update({"Authorization": f"Bearer {ZABBIX_TOKEN}"})
+    st.session_state.authenticated = True
+    st.session_state.zapi = zapi
 
+# used for external auth method (ZABBIX_AUTH_METHOD is "external")
 def login(username, password):
     try:
         temp_zapi = ZabbixAPI(ZABBIX_URL)
@@ -118,15 +127,16 @@ st.set_page_config(page_title="Zabbix Problem Events Dashboard",
                    layout="wide",
                    page_icon="./zabbix_icon.svg")
 
-if not st.session_state.authenticated:
-    st.title("🔐 Zabbix Dashboard Login")
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login")
-        if submitted:
-            login(username, password)
-    st.stop()
+if ZABBIX_AUTH_METHOD == "zabbix":
+    if not st.session_state.authenticated:
+        st.title("🔐 Zabbix Dashboard Login")
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
+            if submitted:
+                login(username, password)
+        st.stop()
 
 
 # Sidebar navigation
@@ -136,13 +146,14 @@ page = st.sidebar.radio("Choose a report:", [
     "end..."
 ])
 
-username_logged = st.session_state.user_info[0]["username"] + " " + st.session_state.user_info[0]["surname"] + " (" + st.session_state.user_info[0]["username"] + ")"
-st.sidebar.success(f"Logged in as: {username_logged}")
-#str(user_info[0]["user"]) + " " +  str(user_info[0]["surname"]) + " (" + str(user_info[0]["username"]) + ")"
-if st.sidebar.button("Logout"):
-    st.session_state.authenticated = False
-    st.session_state.zapi = None
-    st.rerun()
+if ZABBIX_AUTH_METHOD == "zabbix":
+    username_logged = st.session_state.user_info[0]["username"] + " " + st.session_state.user_info[0]["surname"] + " (" + st.session_state.user_info[0]["username"] + ")"
+    st.sidebar.success(f"Logged in as: {username_logged}")
+    #str(user_info[0]["user"]) + " " +  str(user_info[0]["surname"]) + " (" + str(user_info[0]["username"]) + ")"
+    if st.sidebar.button("Logout"):
+        st.session_state.authenticated = False
+        st.session_state.zapi = None
+        st.rerun()
 
 if page == "Last Week Top 20 Reports":
 

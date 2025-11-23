@@ -1,0 +1,93 @@
+# @2025 Jacek Sobczak and copilot :)
+# free to use
+#
+# Compose for zabbix nginx docker frontend, auth-pigiback and streamlit reports for zabbix
+
+version: '3.7'
+
+services:
+  # Zabbix frontend (Nginx + PHP)
+  zabbix-frontend:
+    container_name: zabbix-frontend
+    image: zabbix/zabbix-web-nginx-mysql:alpine-7.4-latest
+    restart: unless-stopped
+    ports:
+      - "80:8080"
+      - "443:8443"
+    environment:
+      # Database connection
+      DB_SERVER_HOST: <put ip or hostname of your zabbix db server here>
+      DB_SERVER_PORT: 3306
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: <put your zabbix db password here>
+      MYSQL_DATABASE: zabbix
+      # Zabbix server connection
+      ZBX_SERVER_HOST: <put ip or hostname of your zabbix server here>
+      ZBX_SERVER_PORT: 10051
+
+      # PHP timezone
+      PHP_TZ: Europe/Warsaw
+    volumes:
+      - type: bind
+        source: ./zabbix/
+        target: /etc/zabbix/
+        read_only: false
+      - type: bind
+        source: ./usr.share.zabbix/auth.php
+        target: /usr/share/zabbix/auth/auth.php
+        read_only: true
+    depends_on:
+ #     - zabbix-server
+ #     - zabbix-db
+      - streamlit
+    networks:
+      - zbxnet
+
+  # Zabbix server
+  #zabbix-server:
+  #  image: zabbix/zabbix-server-mysql:alpine-7.0-latest
+  #  restart: unless-stopped
+  #  environment:
+  #    DB_SERVER_HOST: zabbix-db
+  #    DB_SERVER_PORT: 3306
+  #    MYSQL_USER: zabbix
+  #    MYSQL_PASSWORD: zabbixpwd
+  #    MYSQL_DATABASE: zabbix
+  #  depends_on:
+  #    - zabbix-db
+  #  networks:
+  #    - zbxnet
+
+  # Zabbix database (MySQL/MariaDB)
+  #zabbix-db:
+  #  image: mariadb:11.4
+  #  restart: unless-stopped
+  #  environment:
+  #    MYSQL_ROOT_PASSWORD: rootpwd
+  #    MYSQL_DATABASE: zabbix
+  #    MYSQL_USER: zabbix
+  #    MYSQL_PASSWORD: zabbixpwd
+  #  volumes:
+  #    - ./zabbix-db-data:/var/lib/mysql
+  #  networks:
+  #    - zbxnet
+
+  # Streamlit app
+  streamlit:
+    container_name: streamlit
+    image: top-alerts-last-week:20251123-2009
+    command: streamlit run app.py --server.baseUrlPath=streamlit --server.port=8501 --server.headless=true
+    expose:
+      - "8501"
+    #ports: # Uncomment to expose streamlit directly for testing
+    #  - "8501:8501"
+    environment:
+      ZABBIX_URL: http://my-zabbix-server-url  # replace with actual URL
+      ZABBIX_TOKEN: your_zabbix_api_token_here  # replace with actual token
+      ZABBIX_AUTH_METHOD: zabbix  # possible zabbix, external
+    networks:
+      - zbxnet
+
+networks:
+  zbxnet:
+    driver: bridge
